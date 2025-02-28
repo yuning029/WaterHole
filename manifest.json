@@ -2,8 +2,7 @@
   "manifest_version": 2,
   "name": "水洞",
   "version": "1.0",
-  "description": "一款面向安服仔的碰瓷工具
-  https://github.com/yuning029/WaterHole",
+  "description": "一款面向安服仔的碰瓷工具(https://github.com/yuning029/WaterHole)",
   "permissions": [
     "activeTab",
     "*://*/*"
