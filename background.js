@@ -13,7 +13,9 @@ async function detectVulnerabilities(url) {
     httpMethodIssues: [],
     errorInfoIssues: [],
     robotsIssues: [],
-    sitemapsIssues: []
+    sitemapsIssues: [],
+    unauthorizedAccessIssues: [],
+    clickjackingIssues: []
   };
 
   try {
@@ -22,15 +24,28 @@ async function detectVulnerabilities(url) {
     let errorInfoFuture = getErrorInfoVuln(url);
     let robotsFuture = checkRobotsTxt(url);
     let sitemapsFuture = checkSitemaps(url);
+    let unauthorizedAccessFuture = checkUnauthorizedAccess(url);
 
-    await Promise.all([headersFuture, optionsFuture, errorInfoFuture, robotsFuture, sitemapsFuture]);
+    await Promise.all([headersFuture, optionsFuture, errorInfoFuture, robotsFuture, sitemapsFuture, unauthorizedAccessFuture]);
 
     let headers = await headersFuture;
-    results.headerIssues = getHeadersVuln(headers);
+    let headerVulns = getHeadersVuln(headers);
+    results.headerIssues = headerVulns.filter(v => !v.includes('X-Frame-Options'));
+    
+    // 增强点击劫持检测
+    if (headerVulns.some(v => v.includes('X-Frame-Options'))) {
+      const pocUrl = chrome.runtime.getURL(`Clickjacking_PoC.html?url=${encodeURIComponent(url)}`);
+      results.clickjackingIssues.push({
+        message: "(点击劫持) X-Frame-Options 头缺失，可能存在点击劫持漏洞",
+        poc: pocUrl
+      });
+    }
+
     results.httpMethodIssues = await optionsFuture;
-    results.errorInfoIssues = await getErrorInfoVuln(url);
+    results.errorInfoIssues = await errorInfoFuture;
     results.robotsIssues = await robotsFuture;
     results.sitemapsIssues = await sitemapsFuture;
+    results.unauthorizedAccessIssues = await unauthorizedAccessFuture;
   } catch (error) {
     console.error(`检测出错: ${error}`);
     results.generalError = [error.message];
@@ -79,7 +94,7 @@ function getHeadersVuln(headers) {
   for (let vulnHeader in vulnHeaders) {
     if (!(vulnHeader in headers)) {
       if (vulnHeader !== 'Set-Cookie') {
-        result.push(`(响应头缺失) ${vulnHeader}头缺失`);
+        result.push(`(响应头缺失) ${vulnHeader} 头缺失`);
       }
     } else if (vulnHeader === 'Set-Cookie') {
       let cookieHeaders = headers[vulnHeader].split(/,\s*/);
@@ -96,10 +111,10 @@ function getHeadersVuln(headers) {
           }
         }
         if (!hasHttpOnly) {
-          result.push(`(响应头缺失) Set-Cookie中HttpOnly属性缺失 for ${cookieParts[0]}`);
+          result.push(`(响应头缺失) Set-Cookie 中 HttpOnly 属性缺失 for ${cookieParts[0]}`);
         }
         if (!hasSecure) {
-          result.push(`(响应头缺失) Set-Cookie中Secure属性缺失 for ${cookieParts[0]}`);
+          result.push(`(响应头缺失) Set-Cookie 中 Secure 属性缺失 for ${cookieParts[0]}`);
         }
       }
     }
@@ -125,16 +140,23 @@ function getHeadersVuln(headers) {
 async function getOptionsVuln(url) {
   let result = [];
   try {
-    let traceResponse = await fetch(url, {
-      method: 'trace',
+    let optionsResponse = await fetch(url, {
+      method: 'OPTIONS',
       mode: 'cors',
       credentials: 'include'
     });
-    if (traceResponse.ok) {
-      result.push("(不安全HTTP方法) TRAC方法启用");
+    
+    if (optionsResponse.ok) {
+      const allowMethods = optionsResponse.headers.get('Allow') || 
+                          optionsResponse.headers.get('Access-Control-Allow-Methods');
+      if (allowMethods) {
+        result.push(`(不安全HTTP方法) 允许的HTTP方法: ${allowMethods}`);
+      } else {
+        result.push("(HTTP方法检测) 服务器响应OPTIONS请求但未返回允许的方法列表");
+      }
     }
   } catch (error) {
-    console.error(`检查HTTP方法失败: ${error}`);
+    console.error(`检查OPTIONS方法失败: ${error}`);
   }
   return result;
 }
@@ -142,7 +164,7 @@ async function getOptionsVuln(url) {
 async function getErrorInfoVuln(url) {
   let result = [];
   try {
-    let errorUrl = new URL(url);
+    let errorUrl = new URL(url); 
     errorUrl.pathname = errorUrl.pathname.replace(/\/$/, '') + '/esssdad';
     let response = await fetch(errorUrl.toString(), {
       method: 'GET',
@@ -162,11 +184,11 @@ async function getErrorInfoVuln(url) {
       if (apacheVersions) {
         apacheVersions = [...new Set(apacheVersions)];
         apacheVersions.forEach(version => {
-          result.push(`(Apache版本泄露) ${errorUrl} ${version}`);
+          result.push(`(Apache 版本泄露) ${errorUrl} ${version}`);
         });
       }
       if (/The server understood the/.test(text)) {
-        result.push(`(Weblogic默认报错页面) ${errorUrl}`);
+        result.push(`(Weblogic 默认报错页面) ${errorUrl}`);
       }
     }
   } catch (error) {
@@ -188,16 +210,16 @@ async function checkRobotsTxt(url) {
     if (response.ok) {
       let text = await response.text();
       if (text.includes('Disallow: /admin') || text.includes('Disallow: /login')) {
-        result.push("robots.txt可能暴露敏感目录");
+        result.push("robots.txt 可能暴露敏感目录");
       }
       if (text.includes('Allow: /')) {
-        result.push("robots.txt允许全站爬取");
+        result.push("robots.txt 允许全站爬取");
       }
     } else {
-      result.push("未找到robots.txt文件");
+      result.push("未找到 robots.txt 文件");
     }
   } catch (error) {
-    result.push(`检查robots.txt失败: ${error.message}`);
+    result.push(`检查 robots.txt 失败: ${error.message}`);
   }
   return result;
 }
@@ -213,12 +235,38 @@ async function checkSitemaps(url) {
       credentials: 'include'
     });
     if (response.ok) {
-      result.push("找到sitemaps.xml");
+      result.push("找到 sitemaps.xml");
     } else {
-      result.push("未找到sitemaps.xml文件");
+      result.push("未找到 sitemaps.xml 文件");
     }
   } catch (error) {
-    result.push(`检查sitemaps.xml失败: ${error.message}`);
+    result.push(`检查 sitemaps.xml 失败: ${error.message}`);
+  }
+  return result;
+}
+
+async function checkUnauthorizedAccess(url) {
+  let result = [];
+  try {
+    let response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit', // 去掉 Cookie
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+      }
+    });
+
+    if (response.ok) {
+      result.push(`(未授权访问) 成功访问 ${url} 未经授权`);
+    } else if (response.status === 401 || response.status === 403) {
+      result.push(`(授权正常) ${url} 需要授权`);
+    } else {
+      result.push(`(其他状态) ${url} 返回状态码 ${response.status}`);
+    }
+  } catch (error) {
+    console.error(`检查未授权访问失败: ${error}`);
+    result.push(`检查未授权访问失败: ${error.message}`);
   }
   return result;
 }
