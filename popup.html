@@ -5,13 +5,91 @@
   <title>水洞</title>
   <script src="popup.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 10px; width: 300px; }
-    button { padding: 5px 10px; }
-    #results { margin-top: 10px; }
-    p { margin: 5px 0; }
+    /* 页面背景和整体风格 */
+    body {
+      font-family: 'Courier New', monospace; /* 使用黑客风格字体 */
+      background: #000; /* 黑色背景 */
+      color: #00FF00; /* 绿色文字 */
+      padding: 10px;
+      margin: 0;
+      width: 200px; /* 页面宽度减小 */
+      height: 200px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 标题 */
+    h1 {
+      text-align: center;
+      font-size: 1.2em;
+      margin-bottom: 10px;
+      text-shadow: 0 0 5px #00FF00; /* 添加文字发光效果 */
+    }
+
+    /* 按钮样式 */
+    button {
+      padding: 8px 16px;
+      font-family: inherit;
+      background: linear-gradient(135deg, #0000FF 30%, #00FF00 70%); /* 渐变背景 */
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 添加阴影 */
+      transition: transform 0.2s; /* 添加悬停动画 */
+    }
+
+    button:hover {
+      transform: scale(1.05); /* 鼠标悬停时放大 */
+      background: linear-gradient(135deg, #00FF00 30%, #0000FF 70%); /* 悬停时切换颜色 */
+    }
+
+    /* 结果区域样式 */
+    #results {
+      margin-top: 10px;
+      padding: 8px;
+      background: white; /* 输出框背景改为白色 */
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* 添加阴影 */
+      color: black; /* 输出框内字体颜色改为黑色 */
+    }
+
+    /* 文本样式 */
+    p {
+      margin: 3px 0;
+      text-shadow: 0 0 3px #00FF00; /* 添加文字发光效果 */
+    }
+
+    /* 添加黑客风格的背景图案 */
+    .hack-pattern {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none; /* 防止图案影响点击 */
+      z-index: -1;
+    }
+
+    .hack-pattern:before {
+      content: "";
+      position: absolute;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(45deg, #000 10%, #00FF00 50%, #000 90%);
+      filter: blur(20px);
+      animation: slide 30s linear infinite;
+    }
+
+    @keyframes slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
   </style>
 </head>
 <body>
+  <div class="hack-pattern"></div>
+  <h1>水洞</h1>
   <button id="detect">开始检测</button>
   <div id="results"></div>
 </body>
