@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Clickjacking Demo</title>
+    <style>
+        #wrapper {
+            position: relative;
+            width: 400px;
+            height: 400px;
+        }
+        #fakeButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 200px;
+            height: 100px;
+            background: rgba(255, 0, 0, 0.5);
+            color: white;
+            text-align: center;
+            line-height: 100px;
+            z-index: 10;
+        }
+        iframe {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: none;
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="fakeButton">Click Me!</div>
+        <iframe id="targetFrame"></iframe>
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetUrl = urlParams.get('url');
+        if (targetUrl) {
+            document.getElementById('targetFrame').src = targetUrl;
+        } else {
+            document.getElementById('wrapper').innerHTML = '<p>未提供目标 URL。</p>';
+        }
+    </script>
+</body>
+</html>
