@@ -5,16 +5,24 @@ document.addEventListener('DOMContentLoaded', function() {
       chrome.runtime.sendMessage({action: "detect", url: tab.url}, function(response) {
         var resultsDiv = document.getElementById('results');
         resultsDiv.innerHTML = '';
+        
         if (response) {
           for (let category in response) {
             if (response[category].length > 0) {
               let categoryDiv = document.createElement('div');
               categoryDiv.innerHTML = `<h3>${capitalizeCategory(category)}</h3>`;
+              
               for (let issue of response[category]) {
                 let p = document.createElement('p');
-                p.textContent = issue;
+                // 特殊处理点击劫持的PoC链接
+                if (category === 'clickjackingIssues' && issue.poc) {
+                  p.innerHTML = `${issue.message} <a href="${issue.poc}" target="_blank">[验证PoC]</a>`;
+                } else {
+                  p.textContent = typeof issue === 'object' ? issue.message : issue;
+                }
                 categoryDiv.appendChild(p);
               }
+              
               resultsDiv.appendChild(categoryDiv);
             }
           }
